@@ -8,6 +8,7 @@ namespace spmd {
 using namespace spmd;
 
 int main(int argc, char ** argv) {
+  varying<bool> v;
 
   // do vectorized stuff here
 
