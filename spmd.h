@@ -14,7 +14,7 @@ namespace spmd {
     return i >= cpu::isa::avx2 && i <= cpu::isa::max_intel;
   }
 
-  template <typename T> struct varying {};
+  template <typename T> struct varying;
 
   // execution mask
   struct mask {
@@ -246,7 +246,7 @@ namespace spmd {
   }
 
   // linear structures are 'uniform'ish, w/ constant offsets
-  template <typename T> struct linear {};
+  template <typename T> struct linear;
 
   // linear int, useful for indices.
   template <> struct linear<int> {
