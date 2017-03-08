@@ -4,6 +4,7 @@
 #include <immintrin.h>
 #include <utility>
 #include "cpu.h"
+#include "avx2_math.h"
 
 namespace spmd {
   // spmd on simd computation kernel using avx2
