@@ -1,11 +1,8 @@
 namespace spmd {
-  // disable spmd-on-simd and execute directly
-  struct trivial {
-    static inline bool available() { 
-      return true;
-    }
+  namespace trivial {
 
     template <typename T> using varying = T;
+
     struct mask { 
       bool value;
       mask(bool value = true) noexcept : value(value) {}
@@ -23,7 +20,7 @@ namespace spmd {
       mask & operator |= (const mask & rhs) noexcept { value |= rhs.value; return *this;}
     }
 
-    static thread_local mask execution_mask; // potentially useful for breaks, loops, etc.
+    static thread_local mask execution_mask; // potentially useful for breaks, loops, etc. ? not currently used
 
     struct execution_mask_scope {
       mask old_execution_mask;
@@ -43,5 +40,18 @@ namespace spmd {
       if (cond) then_branch();
       else else_branch();
     }
+
+    struct kernel {
+      static bool available() { 
+        return true;
+      }
+      typedef trivial::execution_mask execution_mask;
+      typedef trivial::execution_mask_scope execution_mask_scope;
+      template <typename T> using varying = trivial::varying<T>;
+      template <typename T> using linear = trivial::linear<T>;
+      template <typename ... Ts> static void if_(Ts ... ts) {
+        trivial::if_<Ts...>(std::forward(ts)...);
+      }
+    };
   };
 }

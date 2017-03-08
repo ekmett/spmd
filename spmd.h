@@ -1,5 +1,6 @@
 #include "spmd/avx2.h"
 #include "spmd/generic.h"
+#include "spmd/trivial.h"
 
 namespace spmd {
   class unsupported_platform_error : public runtime_error {
@@ -14,13 +15,13 @@ namespace spmd {
     throw unsupported_platform_error();
   }
 
-  // host os specific dispatch pattern
-  template <typename F> inline auto kernel(F fun) {
+  // pick a vectorization scheme based on the host platform and run the code.
+  template <typename F> inline auto dispatch(F fun) {
     return dispatch_platform<F, 
 #ifndef __arm__
-       avx2,
+       ::spmd::avx2::kernel,
 #endif
-       generic<8> // try for comparable width
+       ::spmd::trivial::kernel
     >(fun);
   }
 };

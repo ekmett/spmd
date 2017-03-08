@@ -3,9 +3,9 @@
 namespace spmd {
   // portable "generic" varying implementation based on loops.
   // no real speedups expected, used for measuring SIMD improvements
-  template <std::size_t N = 8>
-  struct generic {
-    static_assert(N <= 32, "maximum generic fanout is 32" ); // TODO: allow changing the mask integral type
+  namespace generic {
+
+    static const int items = 8;
 
     static inline bool available() {
       return true;
@@ -13,7 +13,7 @@ namespace spmd {
 
     template <typename T> struct varying;
     struct mask {
-      static const uint32_t on_mask = (1 << N) - 1;
+      static const uint32_t on_mask = (1 << items) - 1;
       
       uint32_t value;
       mask() noexcept : value(on_mask) {}
@@ -60,7 +60,7 @@ namespace spmd {
       template <typename F> void each(F f) {
         if (value == on_mask) {
           // dense
-          for (int i=0;i<N;++i) f(i);
+          for (int i=0;i<items;++i) f(i);
         } else {
           // sparse
           for (uint32_t t = value;t;) {
@@ -76,12 +76,12 @@ namespace spmd {
 
     template <typename T>
     struct varying<T> {
-      std::array<T,N> value;
+      std::array<T,items> value;
       varying() {}
       varying(const T & x) { 
         execution_mask.each([&](int i) { *(value[i]) = x; });
       }
-      explicit varying(std::array<T,N> value) noexcept : value(value) {}
+      explicit varying(std::array<T,items> value) noexcept : value(value) {}
       varying(const varying & that) : value(that.value) {}
       varying masked() const { // replace w/ default where mask is disabled
         (~execution_mask).each([&](int i) { value[i] = T(); });
@@ -180,14 +180,14 @@ namespace spmd {
 
     template <typename T>
     struct varying<T&> { 
-      std::array<T*,N> value;
+      std::array<T*,items> value;
       varying() {}
       varying(const T & x) {
         if (execution_mask.all()) {
           for (auto && e : value) *e = x;
         } else execution_mask.each([&](int i) { *(value[i]) = x; });
       }
-      explicit varying(std::array<T*,N> value) noexcept : value(value) {}
+      explicit varying(std::array<T*,items> value) noexcept : value(value) {}
       varying & operator =(const varying<T> & rhs) {
         execution_mask.each([&](int i) { *(value[i]) = rhs.item(i); });
       }
@@ -295,10 +295,20 @@ namespace spmd {
     }
 
     template <typename T, typename F> void if_(varying<bool> cond, T then_branch, F else_branch) {
-      execution_mask_scope scope(cond);
+      execution_mask_scope<N> scope(cond);
       if (execution_mask.any()) then_branch();
       scope.flip();
       if (execution_mask.any()) else_branch();
     }
-  };
+
+    struct kernel {
+      typedef generic::execution_mask execution_mask;
+      typedef generic::execution_mask_scope execution_mask_scope;
+      template <typename T> using varying = generic::varying<T>;
+      template <typename T> using linear = generic::linear<T>;
+      template <typename ... Ts> static void if_(Ts ... ts) {
+        generic::if_<Ts...>(std::forward(ts)...);
+      }
+    };
+  }
 }
