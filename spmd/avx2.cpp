@@ -1,3 +1,7 @@
 #include "avx2.h"
 
-thread_local spmd::avx2::mask spmd::avx2::execution_mask;
+namespace spmd { 
+  namespace avx2 {
+    thread_local mask execution_mask;
+  }
+}

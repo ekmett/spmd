@@ -1,3 +1,4 @@
+#include <utility> // std::forward
 namespace spmd {
   namespace trivial {
 
@@ -21,7 +22,7 @@ namespace spmd {
       mask & operator &= (bool rhs) noexcept { value &= rhs; return *this;}
     };
 
-    static thread_local mask execution_mask; // potentially useful for breaks, loops, etc. ? not currently used
+    extern thread_local mask execution_mask;
 
     struct execution_mask_scope {
       mask old_execution_mask;

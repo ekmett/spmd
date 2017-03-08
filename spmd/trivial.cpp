@@ -1,7 +1,7 @@
-#include "generic.h"
+#include "trivial.h"
 
 namespace spmd {
-  namespace generic {
+  namespace trivial {
     thread_local mask execution_mask;
   }
 }
