@@ -11,14 +11,14 @@ namespace spmd {
       static mask off() noexcept { return false; }
       bool any() const noexcept { return value; }
       bool all() const noexcept { return value; }
-      mask & operator & (const mask & rhs) noexcept { return value & rhs.value; return *this; }
-      mask & operator | (const mask & rhs) noexcept { value &= rhs.value; return *this;}
-      mask & operator ^ (const mask & rhs) noexcept { value |= rhs.value; return *this;}
+      mask operator & (const mask & rhs) noexcept { return mask (value & rhs.value); }
+      mask operator | (const mask & rhs) noexcept { return mask (value | rhs.value); }
+      mask operator ^ (const mask & rhs) noexcept { return mask (value ^ rhs.value); }
       mask & operator = (const mask & rhs) noexcept { value = rhs.value; return *this; }
       mask & operator &= (const mask & rhs) noexcept { value &= rhs.value; return *this;}
-      mask & operator &= (bool rhs) noexcept { value &= rhs; return *this;}
       mask & operator |= (const mask & rhs) noexcept { value |= rhs.value; return *this;}
-    }
+      mask & operator &= (bool rhs) noexcept { value &= rhs; return *this;}
+    };
 
     static thread_local mask execution_mask; // potentially useful for breaks, loops, etc. ? not currently used
 

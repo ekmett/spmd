@@ -1,3 +1,5 @@
+#include <array> // std::array
+#include <cstdint> // std::uint32_t
 #include <cstddef> // std::size_t
 #include <type_traits> // static_assert
 namespace spmd {
@@ -7,22 +9,19 @@ namespace spmd {
 
     static const int items = 8;
 
-    static inline bool available() {
-      return true;
-    }
 
     template <typename T> struct varying;
     struct mask {
-      static const uint32_t on_mask = (1 << items) - 1;
+      static const std::uint32_t on_mask = (1 << items) - 1;
       
-      uint32_t value;
+      std::uint32_t value;
       mask() noexcept : value(on_mask) {}
       mask(bool b) noexcept : value(b ? on_mask : 0) {}
-      mask(int value) : value(value) {}
+      mask(std::uint32_t value) : value(value) {}
       mask(const mask & m) noexcept : value(m.value) {}
 
       static mask on() noexcept { return mask(on_mask); }
-      static mask off() noexcept { return mask(0); }
+      static mask off() noexcept { return mask(0u); }
       bool any() const noexcept {
         return value != 0;
       }
@@ -72,10 +71,10 @@ namespace spmd {
       }
     };
 
-    static thread_local mask execution_mask;
+    extern thread_local mask execution_mask;
 
     template <typename T>
-    struct varying<T> {
+    struct varying {
       std::array<T,items> value;
       varying() {}
       varying(const T & x) { 
@@ -91,7 +90,7 @@ namespace spmd {
 
       template <typename F> static varying make(F f) {
         varying result;
-        execution_mask.each([&](int i) { value[i] = x; });
+        execution_mask.each([&](int i) { result.value[i] = f(i); });
         return result;
       }
 
@@ -157,24 +156,6 @@ namespace spmd {
         execution_mask.each([&](int i) { value[i] &= rhs.value[i]; });
         return *this;
       }
-      varying<bool> operator == (const varying & rhs) const {
-        return varying<bool>::make([&](int i) { return value[i] == rhs.value[i]; });
-      }
-      varying<bool> operator != (const varying & rhs) const {
-        return varying<bool>::make([&](int i) { return value[i] != rhs.value[i]; });
-      }
-      varying<bool> operator <= (const varying & rhs) const {
-        return varying<bool>::make([&](int i) { return value[i] <= rhs.value[i]; });
-      }
-      varying<bool> operator >= (const varying & rhs) const {
-        return varying<bool>::make([&](int i) { return value[i] >= rhs.value[i]; });
-      }
-      varying<bool> operator < (const varying & rhs) const {
-        return varying<bool>::make([&](int i) { return value[i] < rhs.value[i]; });
-      }
-      varying<bool> operator > (const varying & rhs) const {
-        return varying<bool>::make([&](int i) { return value[i] > rhs.value[i]; });
-      }
 
     };
 
@@ -207,19 +188,16 @@ namespace spmd {
       const T & item(int i) const noexcept { return *(value[i]); }
     };
 
-    template <typename T>
-    varying<T*> operator & (const varying<T&> & p) noexcept {
+    template <typename T> varying<T*> operator & (const varying<T&> & r) noexcept {
       return varying<T*>(r.value);
     }
 
-    template <typename T>
-    varying<T&> operator * (const varying<T*> & p) noexcept {
+    template <typename T> varying<T&> operator * (const varying<T*> & p) noexcept {
       return varying<T&>(p.value);
     }
 
-    template <typename T>
-    struct varying<bool> {
-      uint32_t value;
+    template <> struct varying<bool> {
+      std::uint32_t value;
       varying() noexcept {}
       varying(bool b) noexcept : value(b ? mask::on_mask : 0) {}
       explicit varying(uint32_t value) noexcept : value(value) {}
@@ -243,31 +221,53 @@ namespace spmd {
 
       varying & operator = (const varying & rhs) noexcept {
         uint32_t m = execution_mask.value;
-        value = (value & ~m) | (rhs & m);
+        value = (value & ~m) | (rhs.value & m);
         return *this;
       }
 
       varying & operator &= (const varying & rhs) noexcept {
-        value &= (~execution_mask.value) | rhs;
+        value &= (~execution_mask.value) | rhs.value;
         return *this;
       }
 
       varying & operator |= (const varying & rhs) noexcept {
-        value |= (rhs & execution_mask.value)
+        value |= (rhs.value & execution_mask.value);
         return *this;
       }
 
       template <typename F> static varying make(F f) {
         varying result;
-        execution_mask.each([&](int i) { if (f(i)) value |= 1 << i; });
+        execution_mask.each([&](int i) { if (f(i)) result.value |= 1 << i; });
         return result;
       }
 
       // TODO: item_ref and item_ptr like in avx2 for item(i)
+    };
+
+
+    // default, horrible implementations that work for everything
+    template <typename T> static inline varying<bool> operator == (const varying<T> & lhs, const varying<T> & rhs) {
+      return varying<bool>::make([&](int i) { return lhs.value[i] == rhs.value[i]; });
+    }
+    template <typename T> static inline varying<bool> operator != (const varying<T> & lhs, const varying<T> & rhs) {
+      return varying<bool>::make([&](int i) { return lhs.value[i] != rhs.value[i]; });
+    }
+    template <typename T> static inline varying<bool> operator <= (const varying<T> & lhs, const varying<T> & rhs) {
+      return varying<bool>::make([&](int i) { return lhs.value[i] <= rhs.value[i]; });
+    }
+    template <typename T> static inline varying<bool> operator >= (const varying<T> & lhs, const varying<T> & rhs) {
+      return varying<bool>::make([&](int i) { return lhs.value[i] >= rhs.value[i]; });
+    }
+    template <typename T> static inline varying<bool> operator < (const varying<T> & lhs, const varying<T> & rhs) {
+      return varying<bool>::make([&](int i) { return lhs.value[i] < rhs.value[i]; });
+    }
+    template <typename T> static inline varying<bool> operator > (const varying<T> & lhs, const varying<T> & rhs) {
+      return varying<bool>::make([&](int i) { return lhs.value[i] > rhs.value[i]; });
     }
 
     inline mask & mask::operator &= (const varying<bool> & that) noexcept {
       value &= that.value;
+      return *this;
     }
 
     struct execution_mask_scope {
@@ -278,34 +278,35 @@ namespace spmd {
       void flip() const noexcept {
         execution_mask.value = ~execution_mask.value & old_execution_mask.value;
       }
-    }
+    };
 
-    template <typename T> void if_(bool cond, T then_branch) {
+    template <typename T> static inline void if_(bool cond, T then_branch) {
       if (cond) then_branch();
     }
 
-    template <typename T> void if_(varying<bool> cond, T then_branch) {
+    template <typename T> static inline void if_(varying<bool> cond, T then_branch) {
       execution_mask_scope scope(cond);
       if (execution_mask.any()) then_branch();
     }
 
-    template <typename T, typename F> void if_(bool cond, T then_branch, F else_branch) {
+    template <typename T, typename F> static inline void if_(bool cond, T then_branch, F else_branch) {
       if (cond) then_branch();
       else else_branch();
     }
 
-    template <typename T, typename F> void if_(varying<bool> cond, T then_branch, F else_branch) {
-      execution_mask_scope<N> scope(cond);
+    template <typename T, typename F> static inline void if_(varying<bool> cond, T then_branch, F else_branch) {
+      execution_mask_scope scope(cond);
       if (execution_mask.any()) then_branch();
       scope.flip();
       if (execution_mask.any()) else_branch();
     }
 
     struct kernel {
-      typedef generic::execution_mask execution_mask;
+      static bool available() { return true; }
+      typedef generic::mask mask;
       typedef generic::execution_mask_scope execution_mask_scope;
       template <typename T> using varying = generic::varying<T>;
-      template <typename T> using linear = generic::linear<T>;
+      // template <typename T> using linear = generic::linear<T>;
       template <typename ... Ts> static void if_(Ts ... ts) {
         generic::if_<Ts...>(std::forward(ts)...);
       }

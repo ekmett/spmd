@@ -674,24 +674,24 @@ namespace spmd {
       }
     };
 
-    template <typename T> void if_(bool cond, T then_branch) {
+    template <typename T> static inline void if_(bool cond, T then_branch) {
       if (cond) then_branch();
     }
 
     // varying if_
-    template <typename T> void if_(varying<bool> cond, T then_branch) {
+    template <typename T> static inline void if_(varying<bool> cond, T then_branch) {
       execution_mask_scope scope(cond);
       if (execution_mask.any()) then_branch();
     }
 
     // boring uniform if_
-    template <typename T, typename F> void if_(bool cond, T then_branch, F else_branch) {
+    template <typename T, typename F> static inline void if_(bool cond, T then_branch, F else_branch) {
       if (cond) then_branch();
       else else_branch();
     }
 
     // varying if_
-    template <typename T, typename F> void if_(varying<bool> cond, T then_branch, F else_branch) {
+    template <typename T, typename F> static inline void if_(varying<bool> cond, T then_branch, F else_branch) {
       execution_mask_scope scope(cond);
       if (execution_mask.any()) then_branch();
       scope.flip();
