@@ -518,6 +518,22 @@ namespace spmd {
         value = _mm256_sub_ps(value,_mm256_set1_ps(1.f));
         return varying(old);
       }
+
+      varying sin() const noexcept {
+        return varying(detail::sin256_ps(value));
+      }
+      varying cos() const noexcept {
+        return varying(detail::cos256_ps(value));
+      }
+      varying log() const noexcept {
+        return varying(detail::log256_ps(value));
+      }
+      varying exp() const noexcept {
+        return varying(detail::exp256_ps(value));
+      }
+      void sincos(varying & s, varying & c) const noexcept {
+        detail::sincos256_ps(value, &s.value, &c.value);
+      }
     };
 
     template <> struct varying<int> {
