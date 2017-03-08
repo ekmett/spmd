@@ -1,8 +1,11 @@
 #include "spmd.h"
 
-using namespace spmd::target::avx2;
+using namespace spmd;
 
 int main(int argc, char ** argv) { 
-  varying<int> v;
+  dispatch([&](auto kernel) {
+     typename decltype(kernel)::template varying<int> v;
+     return 1;
+  });
   return 0;
 }

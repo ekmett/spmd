@@ -2,6 +2,7 @@ namespace spmd {
   namespace trivial {
 
     template <typename T> using varying = T;
+    template <typename T> using linear = T;
 
     struct mask { 
       bool value;
@@ -42,10 +43,8 @@ namespace spmd {
     }
 
     struct kernel {
-      static bool available() { 
-        return true;
-      }
-      typedef trivial::execution_mask execution_mask;
+      static bool available() { return true; }
+      typedef trivial::mask mask;
       typedef trivial::execution_mask_scope execution_mask_scope;
       template <typename T> using varying = trivial::varying<T>;
       template <typename T> using linear = trivial::linear<T>;

@@ -751,7 +751,7 @@ namespace spmd {
       }
     };
 
-    linear<int> operator + (int i, linear<int> j) noexcept {
+    static inline linear<int> operator + (int i, linear<int> j) noexcept {
       return linear<int>(i + j.base);
     }
 
