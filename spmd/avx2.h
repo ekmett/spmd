@@ -5,7 +5,6 @@
 #include "cpu.h"
 
 namespace spmd {
-
   // spmd on simd computation kernel using avx2
   template <bool allow_slow_path = false>
   struct avx2 { 
@@ -17,10 +16,9 @@ namespace spmd {
       return i >= cpu::isa::avx2 && i <= cpu::isa::max_intel;
     }
   
+    // forward template declaration
     template <typename T> struct varying;
 
-
-  
     // execution mask
     struct mask {
       __m256i value;
@@ -72,7 +70,7 @@ namespace spmd {
         return *this;
       }
   
-      mask & operator &= (const varying<bool> & rhs) noexcept;
+      // friend mask & operator &= (const varying<bool> & rhs) noexcept;
 
       mask operator ~ () noexcept {
         return (*this) ^ on();
@@ -81,9 +79,10 @@ namespace spmd {
 
     static thread_local mask execution_mask; // shared execution mask
 
+    // primary template
     template <typename T>
-    struct varying<T> {
-      static_assert(allow_slow_path, __PRETTY_FUNCTION__ "unaccelerated varying<T>");
+    struct varying {
+      static_assert(allow_slow_path, "slow path disabled");
       std::array<T,items> value;
       varying() {}
       varying(const T & x) {
@@ -185,6 +184,7 @@ namespace spmd {
       }
     };
   
+    // varying<bool>
     template<>
     struct varying<bool> {
       __m256i value;
@@ -233,22 +233,99 @@ namespace spmd {
         );
         return *this;
       }
+ 
+      // varying<bool> reference to a slot in a simd'd boolean
+      struct item_ref {
+         varying<bool> & m;
+         int i;
+         item_ref() = delete;
+         item_ref(const item_ref &) = delete;
+         item_ref(item_ref &&) = delete;
+         explicit item_ref(varying<bool> & m, int i) noexcept : m(m), i(i) {}
+         bool operator() const noexcept {
+           return m.value.m256i_i32[i] != 0;
+         }
+         item_ref & operator = (bool b) noexcept { 
+           m.value.m256i_i32[i] = b ? ~0 : 0;
+         }
+         item_ref & operator &= (bool b) noexcept {
+           m.value.m256i_i32[i] &= b ? ~0 : 0;
+         }
+         item_ref | operator |= (bool b) noexcept {
+           m.value.m256i_i32[i] |= b ? ~0 : 0;
+         }
+         item_ref | operator ^= (bool b) noexcept {
+           m.value.m256i_i32[i] ^= b ? ~0 : 0;
+         }
+      };
+
+      struct item_ptr {
+        varying<bool> * m;
+        int i;
+        item_ptr() noexcept : m(nullptr, 0) {}
+        item_ptr(const item_ptr & p) noexcept : m(p.m), i(p.i) {}
+        item_ptr(item_ptr && p) noexcept : m(std::move(p.m)), i(std::move(p.i)) {}
+        exlicit item_ptr(varying<bool> * m, int i) noexcept : m(m), i(i) {}
+        item_ptr & operator = (const item_ptr & rhs) noexcept {
+          m = rhs.m
+          i = rhs.i
+          return *this;
+        }
+        bool operator == (const item_ptr & rhs) const noexcept {
+          return (m == rhs.m) && (i == rhs.i);
+        }
+        bool operator != (const item_ptr & rhs) const noexcept {
+          return (m != rhs.m) || (i == rhs.i);
+        }
+        bool operator <= (const item_ptr & rhs) const noexcept {
+          return (m < rhs.m) || ((m == rhs.m) && (i <= rhs.i));
+        }
+        bool operator >= (const item_ptr & rhs) const noexcept {
+          return (m >= rhs.m) || ((m == rhs.m) && (i >= rhs.i));
+        };
+        bool operator < (const item_ptr & rhs) const noexcept {
+          return (m < rhs.m) || ((m == rhs.m) && (i < rhs.i));
+        }
+        bool operator > (const item_ptr & rhs) const noexcept {
+          return (m > rhs.m) || ((m == rhs.m) && (i > rhs.i));
+        }
+      };
+
+      const item_ptr operator & (const item_ref & ref) { 
+        return item_ptr(ref.m,ref.i);
+      }
+
+      item_ptr operator & (item_ref & ref) { 
+        return item_ptr(ref.m,ref.i);
+      }
+
+      const item_ref operator * (const item_ptr & ptr) { 
+        return item_ref(ptr.m,ptr.i);
+      }
+
+      item_ref operator * (item_ptr & ptr) { 
+        return item_ref(ptr.m,ptr.i);
+      }
+
+      item_ref item(int i) {
+        return item_ref(*this,i);
+      }
+      const item_ref item(int i) const {
+        return item_ref(*this,i);
+      }
     }; // varying<bool>
   
-    mask & mask::operator &= (const varying<bool> & rhs) noexcept {
-      value = _mm256_and_si256(value, rhs.value);
-      return *this;
+    mask & operator &= (mask & lhs, const varying<bool> & rhs) noexcept {
+      lhs.value = _mm256_and_si256(lhs.value, rhs.value);
+      return lhs;
     }
-  
 
-    // default generic gather
     template <typename T> varying<T> operator () (const varying<T&> & ref) noexcept {
       varying<T> result;
       execution_mask.each([&](int i) { result.item(i) = ref.item(i); }); 
       return result;
     }
 
-    // default generic scatter
     template <typename T> 
     varying<T&> & operator =(varying<T&> & lhs, const varying<T> & rhs) {
       execution_mask.each([&](int i) { lhs.item(i) = rhs.item(i); })
@@ -256,8 +333,7 @@ namespace spmd {
     }
   
 #ifdef SPMD_64
-    template <typename T>
-    struct varying<T*> {
+    template <typename T> struct varying<T*> {
       __m256i value[2];
       explicit varying(const __m256i value[2]) noexcept : value { value[0],value[1] } {}
       varying & operator =(const varying & that) noexcept {
@@ -276,8 +352,7 @@ namespace spmd {
       const T * & item(int i) const { return reinterpret_cast<T**>(value)[i]; }
     };
   
-    template <typename T>
-    struct varying<T&> {
+    template <typename T> struct varying<T&> {
       __m256i value[2];
       explicit varying(const __m256i value[2]) noexcept : value { value[0], value[1] } {}
       varying & operator =(const varying<T> & rhs) noexcept {
@@ -323,8 +398,7 @@ namespace spmd {
     }
   
 #else
-    template <typename T>
-    struct varying<T*> {
+    template <typename T> struct varying<T*> {
       __m256i value;
       explicit varying(const __m256i value) noexcept : value(value) {}
       varying & operator =(const varying<T*> & that) noexcept { 
@@ -337,8 +411,7 @@ namespace spmd {
       const T * & item(int i) const { return reinterpret_cast<const T*&>(value.m256i_i32[i]); }
     };
 
-    template <typename T>
-    struct varying<T&> {
+    template <typename T> struct varying<T&> {
       __m256i value;
       explicit varying(const __m256i value) noexcept : value(value) {}
       T & item(int i) { return *(reinterpret_cast<T*>(value.m256i_i32[i])); }
@@ -374,8 +447,7 @@ namespace spmd {
     };
 #endif
 
-    template <>
-    struct varying<float> {
+    template <> struct varying<float> {
       __m256 value;
       varying() noexcept : value() {}
       varying(float rhs) noexcept : value(_mm256_set1_ps(rhs)) {}
@@ -410,8 +482,7 @@ namespace spmd {
       }
     };
   
-    template <>
-    struct varying<int> {
+    template <> struct varying<int> {
       __m256i value;
       varying() noexcept : value() {}
       varying(int rhs) noexcept : value(_mm256_set1_epi32(rhs)) {}
@@ -548,11 +619,10 @@ namespace spmd {
         execution_mask.value = _mm256_andnot_si256(execution_mask.value, old_execution_mask.value);
       }
     };
-  
-    // boring uniform if_
-    template <typename T> void if_(bool cond, T then_branch) {
+
+    template <typename T> void if_(bool cond, T then_branch) const {
       if (cond) then_branch();
-    }
+    } if_;
   
     // varying if_
     template <typename T> void if_(varying<bool> cond, T then_branch) {
@@ -631,7 +701,17 @@ namespace spmd {
       return linear<int>(i + j.base);
     }
   };
-}
 
-#define SPMD_AVX2_IF_THEN(x,y) ::spmd::avx2::if_((x),[&] { y })
-#define SPMD_AVX2_IF_THEN_ELSE(x,y,z) ::spmd::avx2::if_((x),[&] { y }, [&] { z })
+  namespace target { 
+    namespace avx2 { // import this namespace consistently through your code and you can just code like normal
+      typedef typename ::spmd::avx2<false> kernel;
+      template <typename T> using varying = kernel::varying<T>;
+      template <typename T> using linear = kernel::linear<T>;
+      typedef typename kernel::execution_mask execution_mask;
+      typedef typename kernel::execution_mask_scope execution_mask_scope;
+      template <typename ... Ts> void if_(Ts... ts) {
+        kernel::if_<Ts...>(std::forward(ts)....);
+      }
+    }
+  }
+}

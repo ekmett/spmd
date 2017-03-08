@@ -1,3 +1,5 @@
+#include <cstddef> // std::size_t
+#include <type_traits> // static_assert
 namespace spmd {
   // portable "generic" varying implementation based on loops.
   // no real speedups expected, used for measuring SIMD improvements
@@ -30,6 +32,9 @@ namespace spmd {
       mask operator & (const mask & that) const noexcept {
         return mask(value & that.value);
       }
+      mask operator ^ (const mask & that) const noexcept {
+        return mask(value ^ that.value);
+      }
       mask operator | (const mask & that) const noexcept {
         return mask(value | that.value);
       }
@@ -38,6 +43,10 @@ namespace spmd {
         return *this;
       }
       mask & operator |= (const mask & that) noexcept {
+        value &= that.value;
+        return *this;
+      }
+      mask & operator ^= (const mask & that) noexcept {
         value &= that.value;
         return *this;
       }
@@ -253,6 +262,8 @@ namespace spmd {
         execution_mask.each([&](int i) { if (f(i)) value |= 1 << i; });
         return result;
       }
+
+      // TODO: item_ref and item_ptr like in avx2 for item(i)
     }
 
     inline mask & mask::operator &= (const varying<bool> & that) noexcept {
