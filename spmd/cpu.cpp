@@ -98,7 +98,8 @@ spmd::cpu::isa spmd::cpu::system_isa() {
     if ((info[2] & (1 << 29)) != 0 &&  // F16C
         (info[2] & (1 << 30)) != 0) {  // RDRAND
       // So far, so good.  AVX2?
-      if ((info2[1] & (1 << 5)) != 0) {
+      if ((info2[1] & (1 << 5)) != 0 && // AVX2
+          (info[2] & (1 << 12)) != 0) { // FMA3 -- EAK
         return spmd::cpu::isa::avx2; // "AVX2 (codename Haswell)"; // 5
       } else {
         return spmd::cpu::isa::avx11; // "AVX1.1 (codename Ivy Bridge)"; // 4
