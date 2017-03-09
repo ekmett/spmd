@@ -77,6 +77,11 @@ namespace spmd {
           m &= ~ (1 << i);
         }
       }
+
+      // active worker count
+      int active() const {
+        return __builtin_popcount(_mm256_movemask_ps(_mm256_castsi256_ps(value)));
+      }
     };
 
     extern thread_local mask execution_mask; // shared execution mask
@@ -767,6 +772,20 @@ namespace spmd {
         return *this;
       }
     };
+
+    static const varying<int> programIndex = varying<int>(_mm256_set_ps(7,6,5,4,3,2,1,0));
+    static const int programCount = 8; // number of programs in a warp
+
+/*
+    template <typename F> void foreach(int i, int j, F fun) {
+      // reset the execution mask here
+      // execution_mask.
+      for (linear<int> t = linear(i);t.base < steps - 7; t += 8) {
+         fun(t);
+      }
+      // now toggle off the mask
+    }
+*/
 
     static inline linear<int> operator + (int i, linear<int> j) noexcept {
       return linear<int>(i + j.base);
