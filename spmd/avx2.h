@@ -6,6 +6,12 @@
 #include "cpu.h"
 #include "avx2_math.h"
 
+// force the avx2 feature set on, so we can compile these combinators.
+// this allows the user to leave the avx2 feature disabled, so their
+// code won't get contaminated with avx2 stuf and yet for us to still
+// automatically select this ISA.
+#define SPMD_AVX2 __attribute__((target("avx2")))
+
 namespace spmd {
   // spmd on simd computation kernel using avx2
   namespace avx2 {
@@ -20,48 +26,48 @@ namespace spmd {
       __m256i value;
 
       // default to initialized.
-      mask() noexcept : value(_mm256_cmpeq_epi32(_mm256_setzero_si256(),_mm256_setzero_si256())) {}
-      mask(bool b) noexcept : value(_mm256_set1_epi32(b ? ~0 : 0)) {}
-      mask(__m256i value) noexcept : value(value) {}
-      mask(const mask & m) noexcept : value(m.value) {}
+      SPMD_AVX2 mask() noexcept : value(_mm256_cmpeq_epi32(_mm256_setzero_si256(),_mm256_setzero_si256())) {}
+      SPMD_AVX2 mask(bool b) noexcept : value(_mm256_set1_epi32(b ? ~0 : 0)) {}
+      SPMD_AVX2 mask(__m256i value) noexcept : value(value) {}
+      SPMD_AVX2 mask(const mask & m) noexcept : value(m.value) {}
       // mask(mask && m) noexcept : value(std::forward(m.value)) {} // move constructor
 
-      static mask on() noexcept { return mask(); }
-      static mask off() noexcept { return _mm256_setzero_si256(); }
+      static SPMD_AVX2 mask on() noexcept { return mask(); }
+      static SPMD_AVX2 mask off() noexcept { return _mm256_setzero_si256(); }
 
       // no threads in the "warp" are active
-      bool any() const noexcept {
+      SPMD_AVX2 bool any() const noexcept {
         return _mm256_movemask_ps(_mm256_castsi256_ps(value)) != 0;
       }
 
       // all 8 threads in the "warp" are active, fast path
-      bool all() const noexcept {
+      SPMD_AVX2 bool all() const noexcept {
         return _mm256_movemask_ps(_mm256_castsi256_ps(value)) == 0xff;
       }
 
-      mask operator & (const mask & that) const noexcept {
+      SPMD_AVX2 mask operator & (const mask & that) const noexcept {
         return _mm256_and_si256(value, that.value);
       }
 
-      mask operator | (const mask & that) const noexcept {
+      SPMD_AVX2 mask operator | (const mask & that) const noexcept {
         return _mm256_or_si256(value, that.value);
       }
 
-      mask operator ^ (const mask & that) const noexcept {
+      SPMD_AVX2 mask operator ^ (const mask & that) const noexcept {
         return _mm256_xor_si256(value, that.value);
       }
 
-      mask & operator &= (const mask & rhs) noexcept {
+      SPMD_AVX2 mask & operator &= (const mask & rhs) noexcept {
         value = _mm256_and_si256(value, rhs.value);
         return *this;
       }
 
-      mask & operator |= (const mask & rhs) noexcept {
+      SPMD_AVX2 mask & operator |= (const mask & rhs) noexcept {
         value = _mm256_or_si256(value, rhs.value);
         return *this;
       }
 
-      mask & operator ^= (const mask & rhs) noexcept {
+      SPMD_AVX2 mask & operator ^= (const mask & rhs) noexcept {
         value = _mm256_or_si256(value, rhs.value);
         return *this;
       }
@@ -70,7 +76,7 @@ namespace spmd {
         return (*this) ^ on();
       }
 
-      template <typename F> void each(F f) {
+      template <typename F> SPMD_AVX2 void each(F f) {
         for (int m = _mm256_movemask_ps(_mm256_castsi256_ps(value));m;) {
           auto i = __builtin_ffs(m);
           f(i);
@@ -79,7 +85,7 @@ namespace spmd {
       }
 
       // active worker count
-      int active() const {
+      SPMD_AVX2 int active() const {
         return __builtin_popcount(_mm256_movemask_ps(_mm256_castsi256_ps(value)));
       }
     };
@@ -181,40 +187,40 @@ namespace spmd {
     struct varying<bool> {
       __m256i value;
 
-      varying() noexcept {}
-      varying(bool b) noexcept : value(_mm256_set1_epi32(b ? ~0 : 0)) {}
-      varying(__m256i value) noexcept : value(value) {}
-      varying(const varying & that) noexcept : value(that.value) {} // copy constructor
+      SPMD_AVX2 varying() noexcept {}
+      SPMD_AVX2 varying(bool b) noexcept : value(_mm256_set1_epi32(b ? ~0 : 0)) {}
+      SPMD_AVX2 varying(__m256i value) noexcept : value(value) {}
+      SPMD_AVX2 varying(const varying & that) noexcept : value(that.value) {} // copy constructor
 
-      varying masked() const noexcept {
+      SPMD_AVX2 varying masked() const noexcept {
         return varying {
           _mm256_castps_si256(_mm256_blendv_ps(_mm256_setzero_ps(), _mm256_castsi256_ps(value), _mm256_castsi256_ps(execution_mask.value)))
         };
       }
 
 
-      varying operator || (const varying& that) const noexcept { return _mm256_or_si256(value, that.value); }
-      varying operator && (const varying& that) const noexcept { return _mm256_and_si256(value, that.value); }
-      varying operator | (const varying& that) const noexcept { return _mm256_or_si256(value, that.value); }
-      varying operator & (const varying& that) const noexcept { return _mm256_and_si256(value, that.value); }
-      varying operator ! () const noexcept { return _mm256_xor_si256(_mm256_cmpeq_epi32(_mm256_setzero_si256(), _mm256_setzero_si256()), value); }
+      SPMD_AVX2 varying operator || (const varying& that) const noexcept { return _mm256_or_si256(value, that.value); }
+      SPMD_AVX2 varying operator && (const varying& that) const noexcept { return _mm256_and_si256(value, that.value); }
+      SPMD_AVX2 varying operator | (const varying& that) const noexcept { return _mm256_or_si256(value, that.value); }
+      SPMD_AVX2 varying operator & (const varying& that) const noexcept { return _mm256_and_si256(value, that.value); }
+      SPMD_AVX2 varying operator ! () const noexcept { return _mm256_xor_si256(_mm256_cmpeq_epi32(_mm256_setzero_si256(), _mm256_setzero_si256()), value); }
 
       // masked assignment operator
-      varying & operator = (const varying & rhs) noexcept {
+      SPMD_AVX2 varying & operator = (const varying & rhs) noexcept {
         value = _mm256_castps_si256(
           _mm256_blendv_ps(_mm256_castsi256_ps(value), _mm256_castsi256_ps(rhs.value), _mm256_castsi256_ps(execution_mask.value))
         );
         return *this;
       }
 
-      varying & operator|=(const varying& that) noexcept {
+      SPMD_AVX2 varying & operator|=(const varying& that) noexcept {
         value = _mm256_castps_si256(
            _mm256_blendv_ps(_mm256_castsi256_ps(value), _mm256_castsi256_ps(_mm256_or_si256(value, that.value)), _mm256_castsi256_ps(execution_mask.value))
         );
         return *this;
       }
 
-      varying & operator&=(const varying& that) noexcept {
+      SPMD_AVX2 varying & operator&=(const varying& that) noexcept {
         value = _mm256_castps_si256(
            _mm256_blendv_ps(_mm256_castsi256_ps(value), _mm256_castsi256_ps(_mm256_and_si256(value, that.value)), _mm256_castsi256_ps(execution_mask.value))
         );
@@ -370,14 +376,14 @@ namespace spmd {
     }
 
     // overload for varying<bool> comparisons
-    static inline varying<bool> operator != (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return _mm256_xor_si256(lhs.value,rhs.value); }
-    static inline varying<bool> operator == (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return !(lhs != rhs); }
-    static inline varying<bool> operator < (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return _mm256_andnot_si256(lhs.value,rhs.value); }
-    static inline varying<bool> operator > (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return _mm256_andnot_si256(rhs.value,lhs.value); }
-    static inline varying<bool> operator <= (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return (!lhs) || rhs; }
-    static inline varying<bool> operator >= (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return lhs || (!rhs); }
+    static SPMD_AVX2 inline varying<bool> operator != (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return _mm256_xor_si256(lhs.value,rhs.value); }
+    static SPMD_AVX2 inline varying<bool> operator == (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return !(lhs != rhs); }
+    static SPMD_AVX2 inline varying<bool> operator < (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return _mm256_andnot_si256(lhs.value,rhs.value); }
+    static SPMD_AVX2 inline varying<bool> operator > (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return _mm256_andnot_si256(rhs.value,lhs.value); }
+    static SPMD_AVX2 inline varying<bool> operator <= (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return (!lhs) || rhs; }
+    static SPMD_AVX2 inline varying<bool> operator >= (const varying<bool> & lhs, const varying<bool> & rhs) noexcept { return lhs || (!rhs); }
 
-    static inline mask & operator &= (mask & lhs, const varying<bool> & rhs) noexcept {
+    SPMD_AVX2  static inline mask & operator &= (mask & lhs, const varying<bool> & rhs) noexcept {
       lhs.value = _mm256_and_si256(lhs.value, rhs.value);
       return lhs;
     }
@@ -385,8 +391,8 @@ namespace spmd {
     template <typename T> struct varying<T*> {
 #ifdef SPMD_64
       __m256i value[2];
-      explicit varying(const __m256i value[2]) noexcept : value { value[0],value[1] } {}
-      varying & operator =(const varying & that) noexcept {
+      explicit SPMD_AVX2 varying(const __m256i value[2]) noexcept : value { value[0],value[1] } {}
+      SPMD_AVX2 varying & operator =(const varying & that) noexcept {
         value[0] = _mm256_castps_si256(
           _mm256_blendv_ps(
             _mm256_castsi256_ps(value[0]),
@@ -405,25 +411,25 @@ namespace spmd {
       }
 #else
       __m256i value;
-      explicit varying(const __m256i value) noexcept : value(value) {}
-      varying & operator =(const varying<T*> & that) noexcept {
+      explicit SPMD_AVX2 varying(const __m256i value) noexcept : value(value) {}
+      SPMD_AVX2 varying & operator =(const varying<T*> & that) noexcept {
         value = _mm256_castps_si256(
           _mm256_blendv_ps(_mm256_castsi256_ps(value), _mm256_castsi256_ps(rhs.value), _mm256_castsi256_ps(execution_mask.value))
         );
         return *this;
       }
 #endif
-      T * & item(int i) { return reinterpret_cast<T**>(value)[i]; }
-      const T * & item(int i) const { return reinterpret_cast<const T**>(value)[i]; }
+      SPMD_AVX2 T * & item(int i) { return reinterpret_cast<T**>(value)[i]; }
+      SPMD_AVX2 const T * & item(int i) const { return reinterpret_cast<const T**>(value)[i]; }
     };
 
     template <typename T> struct varying<T&> {
 #ifdef SPMD_64
       __m256i value[2];
-      explicit varying(const __m256i value[2]) noexcept : value { value[0], value[1] } {}
+      explicit SPMD_AVX2 varying(const __m256i value[2]) noexcept : value { value[0], value[1] } {}
 #else
       __m256i value;
-      explicit varying(const __m256i value) noexcept : value(value) {}
+      explicit SPMD_AVX2 varying(const __m256i value) noexcept : value(value) {}
 #endif
       varying & operator =(const varying<T> & rhs) {
         execution_mask.each([&](int i) { item(i) = rhs.item(i); });
@@ -474,26 +480,26 @@ namespace spmd {
 
     template <> struct varying<float> {
       __m256 value;
-      varying() noexcept : value() {}
-      varying(float rhs) noexcept : value(_mm256_set1_ps(rhs)) {}
-      varying(const varying & rhs) noexcept : value(rhs.value) {}
-      explicit varying(const __m256 & value) noexcept : value(value) {}
+      SPMD_AVX2 varying() noexcept : value() {}
+      SPMD_AVX2 varying(float rhs) noexcept : value(_mm256_set1_ps(rhs)) {}
+      SPMD_AVX2 varying(const varying & rhs) noexcept : value(rhs.value) {}
+      SPMD_AVX2 explicit varying(const __m256 & value) noexcept : value(value) {}
       float & item(int i) noexcept { return reinterpret_cast<float*>(&value)[i]; }
       const float & item(int i) const noexcept { return reinterpret_cast<const float*>(&value)[i]; }
-      varying masked() const noexcept { return varying(_mm256_blendv_ps(_mm256_setzero_ps(), value, _mm256_castsi256_ps(execution_mask.value))); }
-      varying operator + (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying masked() const noexcept { return varying(_mm256_blendv_ps(_mm256_setzero_ps(), value, _mm256_castsi256_ps(execution_mask.value))); }
+      SPMD_AVX2 varying operator + (const varying & rhs) const noexcept {
         return varying(_mm256_add_ps(value,rhs.value));
       }
-      varying operator - (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator - (const varying & rhs) const noexcept {
         return varying(_mm256_sub_ps(value,rhs.value));
       }
-      varying operator * (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator * (const varying & rhs) const noexcept {
         return varying(_mm256_mul_ps(value,rhs.value));
       }
-      varying operator / (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator / (const varying & rhs) const noexcept {
         return varying(_mm256_div_ps(value,rhs.value));
       }
-      varying & operator += (const varying & rhs) noexcept {
+      SPMD_AVX2 varying & operator += (const varying & rhs) noexcept {
         return (*this = (*this) + rhs);
       }
       varying & operator -= (const varying & rhs) noexcept {
@@ -505,45 +511,47 @@ namespace spmd {
       varying & operator /= (const varying & rhs) noexcept {
         return (*this = (*this) / rhs);
       }
-      varying & operator ++ () noexcept {
+      SPMD_AVX2 varying & operator ++ () noexcept {
         value = _mm256_add_ps(value,_mm256_set1_ps(1.f));
         return *this;
       }
-      varying operator ++ (int) noexcept {
+      SPMD_AVX2 varying operator ++ (int) noexcept {
         auto old = value;
         value = _mm256_add_ps(value,_mm256_set1_ps(1.f));
         return varying(old);
       }
-      varying & operator -- () noexcept {
+      SPMD_AVX2 varying & operator -- () noexcept {
         value = _mm256_sub_ps(value,_mm256_set1_ps(1.f));
         return *this;
       }
-      varying operator -- (int) noexcept {
+      SPMD_AVX2 varying operator -- (int) noexcept {
         auto old = value;
         value = _mm256_sub_ps(value,_mm256_set1_ps(1.f));
         return varying(old);
       }
-
-      varying sin() const noexcept {
+      SPMD_AVX2 varying sin() const noexcept {
         return varying(detail::sin256_ps(value));
       }
-      varying cos() const noexcept {
+      SPMD_AVX2 varying cos() const noexcept {
         return varying(detail::cos256_ps(value));
       }
-      varying log() const noexcept {
+      SPMD_AVX2 varying log() const noexcept {
         return varying(detail::log256_ps(value));
       }
-      varying exp() const noexcept {
+      SPMD_AVX2 varying exp() const noexcept {
         return varying(detail::exp256_ps(value));
       }
-      void sincos(varying & s, varying & c) const noexcept {
+      SPMD_AVX2 void sincos(varying & s, varying & c) const noexcept {
         detail::sincos256_ps(value, &s.value, &c.value);
       }
     };
 
     template <> struct varying<int> {
       __m256i value;
-      varying<int> (const varying<int&> & ref) noexcept : value(
+      SPMD_AVX2 varying<int> (int a, int b, int c, int d, int e, int f, int g, int h) noexcept : value(
+        _mm256_set_ps(a,b,c,d,e,f,g,h)
+      ) {}
+      SPMD_AVX2 varying<int> (const varying<int&> & ref) noexcept : value(
         // gather
 #ifdef SPMD_64
         _mm256_set_m128i(
@@ -566,20 +574,20 @@ namespace spmd {
         _mm256_mask_i32gather_epi32(_mm256_setzero_si256(), nullptr, value, execution_mask.value, 1)
 #endif
       ) {}
-      varying() noexcept : value() {}
-      varying(int rhs) noexcept : value(_mm256_set1_epi32(rhs)) {}
-      varying(const varying & rhs) noexcept : value(rhs.value) {}
-      explicit varying(const __m256i & value) noexcept : value(value) {}
-      int & item(int i) { return reinterpret_cast<int*>(&value)[i]; }
-      const int & item(int i) const { return reinterpret_cast<const int*>(&value)[i]; }
-      varying masked() const { return varying(value & execution_mask.value); }
-      varying operator + (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying() noexcept : value() {}
+      SPMD_AVX2 varying(int rhs) noexcept : value(_mm256_set1_epi32(rhs)) {}
+      SPMD_AVX2 varying(const varying & rhs) noexcept : value(rhs.value) {}
+      explicit SPMD_AVX2 varying(const __m256i & value) noexcept : value(value) {}
+      SPMD_AVX2 int & item(int i) { return reinterpret_cast<int*>(&value)[i]; }
+      SPMD_AVX2 const int & item(int i) const { return reinterpret_cast<const int*>(&value)[i]; }
+      SPMD_AVX2 varying masked() const { return varying(value & execution_mask.value); }
+      SPMD_AVX2 varying operator + (const varying & rhs) const noexcept {
         return varying(_mm256_add_epi32(value,rhs.value));
       }
-      varying operator - (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator - (const varying & rhs) const noexcept {
         return varying(_mm256_sub_epi32(value,rhs.value));
       }
-      varying operator * (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator * (const varying & rhs) const noexcept {
         return varying(_mm256_mullo_epi32(value,rhs.value));
       }
       //varying operator / (const varying & rhs) const noexcept {
@@ -588,40 +596,40 @@ namespace spmd {
       //varying operator % (const varying & rhs) const noexcept {
       //  return varying(_mm256_rem_epi32(value,rhs.value));
       //}
-      varying operator && (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator && (const varying & rhs) const noexcept {
         return varying(_mm256_and_si256(value,rhs.value));
       }
-      varying operator || (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator || (const varying & rhs) const noexcept {
         return varying(_mm256_or_si256(value,rhs.value));
       }
-      varying operator & (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator & (const varying & rhs) const noexcept {
         return varying(_mm256_and_si256(value,rhs.value));
       }
-      varying operator | (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator | (const varying & rhs) const noexcept {
         return varying(_mm256_or_si256(value,rhs.value));
       }
-      varying operator ^ (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying operator ^ (const varying & rhs) const noexcept {
         return varying(_mm256_or_si256(value,rhs.value));
       }
-      varying operator ~ () const noexcept {
+      SPMD_AVX2 varying operator ~ () const noexcept {
         return varying(_mm256_xor_si256(value,_mm256_cmpeq_epi32(_mm256_setzero_si256(),_mm256_setzero_si256())));
       }
-      varying operator ! () const noexcept {
+      SPMD_AVX2 varying operator ! () const noexcept {
         return varying(_mm256_xor_si256(value,_mm256_cmpeq_epi32(_mm256_setzero_si256(),_mm256_setzero_si256())));
       }
-      varying & operator = (const varying & rhs) noexcept {
+      SPMD_AVX2 varying & operator = (const varying & rhs) noexcept {
          value = _mm256_castps_si256(
           _mm256_blendv_ps(_mm256_castsi256_ps(value), _mm256_castsi256_ps(rhs.value), _mm256_castsi256_ps(execution_mask.value))
         );
         return *this;
       }
-      varying & operator += (const varying & rhs) noexcept {
+      SPMD_AVX2 varying & operator += (const varying & rhs) noexcept {
         return (*this = (*this) + rhs);
       }
-      varying & operator -= (const varying & rhs) noexcept {
+      SPMD_AVX2 varying & operator -= (const varying & rhs) noexcept {
         return (*this = (*this) - rhs);
       }
-      varying & operator *= (const varying & rhs) noexcept {
+      SPMD_AVX2 varying & operator *= (const varying & rhs) noexcept {
         return (*this = (*this) * rhs);
       }
       //varying & operator /= (const varying & rhs) noexcept {
@@ -630,49 +638,49 @@ namespace spmd {
       //varying & operator %= (const varying & rhs) noexcept {
       //  return (*this = (*this) % rhs);
       //}
-      varying & operator &= (const varying & rhs) noexcept {
+      SPMD_AVX2 varying & operator &= (const varying & rhs) noexcept {
         return (*this = (*this) & rhs);
       }
-      varying & operator |= (const varying & rhs) noexcept {
+      SPMD_AVX2 varying & operator |= (const varying & rhs) noexcept {
         return (*this = (*this) | rhs);
       }
-      varying & operator ++ () noexcept {
+      SPMD_AVX2 varying & operator ++ () noexcept {
         value = _mm256_add_epi32(value,_mm256_set1_epi32(1));
         return *this;
       }
-      varying operator ++ (int) noexcept {
+      SPMD_AVX2 varying operator ++ (int) noexcept {
         auto old = value;
         value = _mm256_add_epi32(value,_mm256_set1_epi32(1));
         return varying(old);
       }
-      varying & operator -- () noexcept {
+      SPMD_AVX2 varying & operator -- () noexcept {
         value = _mm256_sub_epi32(value,_mm256_set1_epi32(1));
         return *this;
       }
-      varying operator -- (int) noexcept {
+      SPMD_AVX2 varying operator -- (int) noexcept {
         auto old = value;
         value = _mm256_sub_epi32(value,_mm256_set1_epi32(1));
         return varying(old);
       }
-      varying<bool> operator == (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying<bool> operator == (const varying & rhs) const noexcept {
         return varying<bool>(_mm256_cmpeq_epi32(value,rhs.value));
       }
-      varying<bool> operator != (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying<bool> operator != (const varying & rhs) const noexcept {
         return !varying<bool>(_mm256_cmpeq_epi32(value,rhs.value));
       }
-      varying<bool> operator <= (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying<bool> operator <= (const varying & rhs) const noexcept {
         return !varying<bool>(_mm256_cmpgt_epi32(value,rhs.value));
       }
-      varying<bool> operator >= (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying<bool> operator >= (const varying & rhs) const noexcept {
         return !varying<bool>(_mm256_cmpgt_epi32(rhs.value,value));
       }
-      varying<bool> operator < (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying<bool> operator < (const varying & rhs) const noexcept {
         return varying<bool>(_mm256_cmpgt_epi32(rhs.value,value));
       }
-      varying<bool> operator > (const varying & rhs) const noexcept {
+      SPMD_AVX2 varying<bool> operator > (const varying & rhs) const noexcept {
         return varying<bool>(_mm256_cmpgt_epi32(value,rhs.value));
       }
-      varying<bool> operator () () noexcept {
+      SPMD_AVX2 varying<bool> operator () () noexcept {
         return !varying<bool>(_mm256_cmpeq_epi32(value,_mm256_setzero_si256()));
       }
     };
@@ -686,12 +694,12 @@ namespace spmd {
     // raii, copy existing execution mask, restore on exit
     struct execution_mask_scope {
       mask old_execution_mask;
-      execution_mask_scope() : old_execution_mask(execution_mask) {}
-      execution_mask_scope(varying<bool> cond) : old_execution_mask(execution_mask) { execution_mask &= cond; }
-      ~execution_mask_scope() { execution_mask = old_execution_mask; }
+      SPMD_AVX2 execution_mask_scope() : old_execution_mask(execution_mask) {}
+      SPMD_AVX2 execution_mask_scope(varying<bool> cond) : old_execution_mask(execution_mask) { execution_mask &= cond; }
+      SPMD_AVX2 ~execution_mask_scope() { execution_mask = old_execution_mask; }
 
       // if we masked off some threads since we started, flip the mask to just the others.
-      void flip() const noexcept {
+      SPMD_AVX2 void flip() const noexcept {
         execution_mask.value = _mm256_andnot_si256(execution_mask.value, old_execution_mask.value);
       }
     };
@@ -701,7 +709,7 @@ namespace spmd {
     }
 
     // varying if_
-    template <typename T> static inline void if_(varying<bool> cond, T then_branch) {
+    template <typename T> static inline void SPMD_AVX2 if_(varying<bool> cond, T then_branch) {
       execution_mask_scope scope(cond);
       if (execution_mask.any()) then_branch();
     }
@@ -713,7 +721,7 @@ namespace spmd {
     }
 
     // varying if_
-    template <typename T, typename F> static inline void if_(varying<bool> cond, T then_branch, F else_branch) {
+    template <typename T, typename F> static SPMD_AVX2 inline void if_(varying<bool> cond, T then_branch, F else_branch) {
       execution_mask_scope scope(cond);
       if (execution_mask.any()) then_branch();
       scope.flip();
@@ -723,6 +731,9 @@ namespace spmd {
     // linear structures are 'uniform'ish, w/ constant offsets
     template <typename T> struct linear;
 
+    static const varying<int> programIndex = varying<int>(7,6,5,4,3,2,1,0);
+    static const int programCount = 8; // number of programs in a warp
+
     // linear int, useful for indices.
     template <> struct linear<int> {
       int base;
@@ -730,14 +741,15 @@ namespace spmd {
       linear(const linear & rhs) : base(rhs.base) {}
       linear(linear && rhs) : base(std::forward<int>(rhs.base)) {}
 
-      template <typename T> varying<int> operator[](int const * p) const noexcept {
+      template <typename T> SPMD_AVX2 varying<int> operator[](int const * p) const noexcept {
         // perform a masked load. This prevents reading past end of page, or doing other bad things out of bounds
         return varying<int>(_mm256_maskload_epi32(p + base, execution_mask.value));
       }
 
       // downgrade to a varying int
-      varying<int> operator()() const noexcept {
-        return varying<int>(_mm256_add_ps(_mm256_set_ps(7,6,5,4,3,2,1,0), _mm256_set1_epi32(base)));
+      SPMD_AVX2 operator varying<int> () const noexcept {
+        // return varying<int>(_mm256_add_ps(_mm256_set_ps(7,6,5,4,3,2,1,0), _mm256_set1_epi32(base)));
+        return programIndex + varying<int>(base);
       };
       linear operator + (int i) const noexcept {
         return linear(base + i);
@@ -773,8 +785,6 @@ namespace spmd {
       }
     };
 
-    static const varying<int> programIndex = varying<int>(_mm256_set_ps(7,6,5,4,3,2,1,0));
-    static const int programCount = 8; // number of programs in a warp
 
 /*
     template <typename F> void foreach(int i, int j, F fun) {
