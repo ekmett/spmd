@@ -251,6 +251,8 @@ namespace spmd {
 
       typedef T & item_ref;
       typedef const T & const_item_ref;
+      typedef T * item_ptr;
+      typedef const T * const_item_ptr;
       T & item(int i) noexcept { return value[i]; }
       const T & item(int i) const noexcept { return value[i]; }
 
@@ -345,52 +347,52 @@ namespace spmd {
     }
 
     template <typename T, size_t N = default_width>
-    struct item_ptr {
+    struct default_item_ptr {
       varying<T,N> * m;
       int i;
-      item_ptr() noexcept : m(nullptr), i(0) {}
-      item_ptr(const item_ptr & p) noexcept : m(p.m), i(p.i) {}
-      item_ptr(item_ptr && p) noexcept : m(std::move(p.m)), i(std::move(p.i)) {}
-      explicit item_ptr(varying<T,N> * m, int i) noexcept : m(m), i(i) {}
-      item_ptr & operator = (const item_ptr & rhs) noexcept {
+      default_item_ptr() noexcept : m(nullptr), i(0) {}
+      default_item_ptr(const item_ptr & p) noexcept : m(p.m), i(p.i) {}
+      default_item_ptr(item_ptr && p) noexcept : m(std::move(p.m)), i(std::move(p.i)) {}
+      explicit default_item_ptr(varying<T,N> * m, int i) noexcept : m(m), i(i) {}
+      default_item_ptr & operator = (const default_item_ptr & rhs) noexcept {
         m = rhs.m;
         i = rhs.i;
         return *this;
       }
-      bool operator == (const item_ptr & rhs) const noexcept {
+      bool operator == (const default_item_ptr & rhs) const noexcept {
         return (m == rhs.m) && (i == rhs.i);
       }
-      bool operator != (const item_ptr & rhs) const noexcept {
+      bool operator != (const default_item_ptr & rhs) const noexcept {
         return (m != rhs.m) || (i == rhs.i);
       }
-      bool operator <= (const item_ptr & rhs) const noexcept {
+      bool operator <= (const default_item_ptr & rhs) const noexcept {
         return (m < rhs.m) || ((m == rhs.m) && (i <= rhs.i));
       }
-      bool operator >= (const item_ptr & rhs) const noexcept {
+      bool operator >= (const default_item_ptr & rhs) const noexcept {
         return (m >= rhs.m) || ((m == rhs.m) && (i >= rhs.i));
       };
-      bool operator < (const item_ptr & rhs) const noexcept {
+      bool operator < (const default_item_ptr & rhs) const noexcept {
         return (m < rhs.m) || ((m == rhs.m) && (i < rhs.i));
       }
-      bool operator > (const item_ptr & rhs) const noexcept {
+      bool operator > (const default_item_ptr & rhs) const noexcept {
         return (m > rhs.m) || ((m == rhs.m) && (i > rhs.i));
       }
-      item_ptr & operator --() noexcept {
+      default_item_ptr & operator --() noexcept {
         i = (i + N - 1) % N;
         if (i == N - 1) --m;
         return *this;
       }
-      item_ptr & operator ++() noexcept {
+      default_item_ptr & operator ++() noexcept {
         i = (i + 1) % N;
         if (i == 0) ++m;
         return *this;
       }
-      item_ptr operator --(int) noexcept {
-        item_ptr result(*this);
+      default_item_ptr operator --(int) noexcept {
+        default_item_ptr result(*this);
         --(*this);
         return result;
       }
-      item_ptr operator ++(int) noexcept {
+      default_item_ptr operator ++(int) noexcept {
         item_ptr result(*this);
         ++(*this);
         return result;
@@ -398,53 +400,53 @@ namespace spmd {
     };
 
     template <typename T, size_t N = default_width>
-    struct const_item_ptr {
+    struct default_const_item_ptr {
       const varying<T,N> * m;
       int i;
-      const_item_ptr() noexcept : m(nullptr), i(0) {}
-      const_item_ptr(const const_item_ptr & p) noexcept : m(p.m), i(p.i) {}
-      const_item_ptr(const_item_ptr && p) noexcept : m(std::move(p.m)), i(std::move(p.i)) {}
-      explicit const_item_ptr(varying<T,N> * m, int i) noexcept : m(m), i(i) {}
-      const_item_ptr & operator = (const const_item_ptr & rhs) noexcept {
+      default_const_item_ptr() noexcept : m(nullptr), i(0) {}
+      default_const_item_ptr(const default_const_item_ptr & p) noexcept : m(p.m), i(p.i) {}
+      default_const_item_ptr(default_const_item_ptr && p) noexcept : m(std::move(p.m)), i(std::move(p.i)) {}
+      explicit default_const_item_ptr(varying<T,N> * m, int i) noexcept : m(m), i(i) {}
+      default_const_item_ptr & operator = (const default_const_item_ptr & rhs) noexcept {
         m = rhs.m;
         i = rhs.i;
         return *this;
       }
-      bool operator == (const const_item_ptr & rhs) const noexcept {
+      bool operator == (const default_const_item_ptr & rhs) const noexcept {
         return (m == rhs.m) && (i == rhs.i);
       }
-      bool operator != (const const_item_ptr & rhs) const noexcept {
+      bool operator != (const default_const_item_ptr & rhs) const noexcept {
         return (m != rhs.m) || (i == rhs.i);
       }
-      bool operator <= (const const_item_ptr & rhs) const noexcept {
+      bool operator <= (const default_const_item_ptr & rhs) const noexcept {
         return (m < rhs.m) || ((m == rhs.m) && (i <= rhs.i));
       }
-      bool operator >= (const const_item_ptr & rhs) const noexcept {
+      bool operator >= (const default_const_item_ptr & rhs) const noexcept {
         return (m >= rhs.m) || ((m == rhs.m) && (i >= rhs.i));
       };
-      bool operator < (const const_item_ptr & rhs) const noexcept {
+      bool operator < (const default_const_item_ptr & rhs) const noexcept {
         return (m < rhs.m) || ((m == rhs.m) && (i < rhs.i));
       }
-      bool operator > (const const_item_ptr & rhs) const noexcept {
+      bool operator > (const default_const_item_ptr & rhs) const noexcept {
         return (m > rhs.m) || ((m == rhs.m) && (i > rhs.i));
       }
-      const_item_ptr & operator --() noexcept {
+      default_const_item_ptr & operator --() noexcept {
         i = (i + N - 1) % N;
         if (i == N - 1) --m;
         return *this;
       }
-      const_item_ptr & operator ++() noexcept {
+      default_const_item_ptr & operator ++() noexcept {
         i = (i + 1) % N;
         if (i == 0) ++m;
         return *this;
       }
-      const_item_ptr operator --(int) noexcept {
-        const_item_ptr result(*this);
+      default_const_item_ptr operator --(int) noexcept {
+        default_const_item_ptr result(*this);
         --(*this);
         return result;
       }
-      const_item_ptr operator ++(int) noexcept {
-        const_item_ptr result(*this);
+      default_const_item_ptr operator ++(int) noexcept {
+        default_const_item_ptr result(*this);
         ++(*this);
         return result;
       }
@@ -452,6 +454,8 @@ namespace spmd {
 
     template <typename T, size_t N = default_width> using item_ref = typename varying<T,N>::item_ref;
     template <typename T, size_t N = default_width> using const_item_ref = typename varying<T,N>::const_item_ref;
+    template <typename T, size_t N = default_width> using item_ptr = typename varying<T,N>::item_ptr;
+    template <typename T, size_t N = default_width> using const_item_ptr = typename varying<T,N>::const_item_ptr;
 
     // boolean item refs, as booleans are always specialized
     namespace detail {
@@ -542,6 +546,8 @@ namespace spmd {
 
       typedef detail::bool_item_ref<N> item_ref;
       typedef detail::const_bool_item_ref<N> const_item_ref;
+      typedef ::spmd::item_ptr<N> item_ptr;
+      typedef ::spmd::item_ptr<N> const_item_ptr;
       item_ref item(int i) noexcept { return item_ref(*this,i); }
       const_item_ref item(int i) const noexcept { return const_item_ref(*this,i); }
 
@@ -602,6 +608,8 @@ namespace spmd {
 
       typedef detail::bool_item_ref<N> item_ref;
       typedef detail::const_bool_item_ref<N> const_item_ref;
+      typedef default_item_ptr<bool,N> item_ptr;
+      typedef default_const_item_ptr<bool,N> const_item_ptr;
       item_ref item(int i) noexcept { return item_ref(*this,i); }
       const_item_ref item(int i) const noexcept { return const_item_ref(*this,i); }
 
@@ -1549,8 +1557,8 @@ namespace spmd {
       }
       // const varying<const_item_ref<T>> operator[](varying<int> i);
       // const varying<const_item_ref<T>> operator[](linear<int> i);
-      operator item_ptr<T,N>() { return value[0].item(0); }
-      operator const_item_ptr<T,N>() const { return value[0].item(0); }
+      operator typename varying<T,N>::item_ptr() { return &(value[0].item(0)); } // this needs us to have a shared item_ref type
+      operator typename varying<T,N>::const_item_ptr() const { return &(value[0].item(0)); }
     };
 
 /*
