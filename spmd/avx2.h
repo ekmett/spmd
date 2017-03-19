@@ -485,8 +485,8 @@ namespace spmd {
     struct varying<std::pair<A,B>,N> {
       typedef A first_type;
       typedef B second_type; 
-      varying<A> first;
-      varying<B> second;
+      varying<A,N> first;
+      varying<B,N> second;
       varying & operator=(const varying & rhs) { first = rhs.first; second = rhs.second; } 
       void swap(const varying & rhs) { std::swap(first,rhs.first); std::swap(second,rhs.second); }
       // we need an item ref type, etc.
@@ -495,7 +495,7 @@ namespace spmd {
 /*
     template <size_t N = default_width, typename ... Ts>
     struct varying<std::tuple<Ts...,N> {
-      std::tuple<varying<Ts>...> value;
+      std::tuple<varying<Ts,N>...> value;
     };
 */
 
