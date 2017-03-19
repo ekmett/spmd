@@ -6,10 +6,7 @@
 #include "cpu.h"
 #include "avx2_math.h"
 
-// force the avx2 feature set on, so we can compile these combinators.
-// this allows the user to leave the avx2 feature disabled, so their
-// code won't get contaminated with avx2 stuf and yet for us to still
-// automatically select this ISA.
+// TODO: make a generic item_ref type to share work between instances?
 
 namespace spmd {
     static const int default_width = 8;
@@ -234,7 +231,6 @@ namespace spmd {
       static thread_local mask exec;
     };
 #endif
-
 
     // primary template
     template <typename T, size_t N = default_width>
@@ -493,6 +489,7 @@ namespace spmd {
       varying<B> second;
       varying & operator=(const varying & rhs) { first = rhs.first; second = rhs.second; } 
       void swap(const varying & rhs) { std::swap(first,rhs.first); std::swap(second,rhs.second); }
+      // we need an item ref type, etc.
     };
 
 /*
@@ -1539,7 +1536,7 @@ namespace spmd {
       static_assert(N>0)
       varying<T,N> value[(L+N-1)/N];
       item_ref<T> operator[](int i) {
-        return value[i >> 3].item(i & 3);
+        return value[i / N].item(i % N);
       }
       varying<item_ref<T,N>> operator[](varying<int> i) {
         varying<item_ref<T,N>> result;
